@@ -236,7 +236,7 @@ while not_steady and not_blowing_up and t < tmax:
 
     # =======================================================================
     # Now let's plot the final fields.
-    if count % 10 == 0:
+    if count % 50 == 0 or not not_blowing_up:
         plot_field_latlon(q, f'q_{t}')
         plot_field_latlon(h, f'h_{t}')
         plot_field_latlon(u, f'u_{t}')
