@@ -120,7 +120,7 @@ def run_model(nsteps, ncells, dumpfreq, Omega, dt):
             - inner(avg(grad(h0)), 2*avg(test_h * n)) * dS
             + mu * inner(2*avg(h0 * n), 2*avg(test_h * n)) * dS
         )
-        + test_h * (H/r) * div(f * domain.perp(u)) * dx
+        - test_h * (H/r) * div(f * domain.perp(u)) * dx
     )
     h_lhs = lhs(h_eqn)
     h_rhs = rhs(h_eqn)
@@ -237,10 +237,10 @@ def run_model(nsteps, ncells, dumpfreq, Omega, dt):
         # ==================================================================
         # Now let's plot the fields.
         if count % dumpfreq == 0 or not not_blowing_up:
-            plot_field_latlon(q, f'q_{t}')
-            plot_field_latlon(h, f'h_{t}')
-            plot_field_latlon(u, f'u_{t}')
-            plot_u_components(u, f'u_{t}')
+            plot_field_latlon(q, f'q_{count}')
+            plot_field_latlon(h, f'h_{count}')
+            plot_field_latlon(u, f'u_{count}')
+            plot_u_components(u, f'u_{count}')
 
     # ==================================================================
     # check that q has changed
