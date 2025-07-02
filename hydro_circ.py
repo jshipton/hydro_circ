@@ -123,7 +123,7 @@ h_eqn = test_h * (trial_h - h0) * dx + dt * (
         - inner(avg(grad(h0)), 2*avg(test_h * n)) * dS
         + mu * inner(2*avg(h0 * n), 2*avg(test_h * n)) * dS
     )
-    + test_h * (H/r) * div(f * domain.perp(u)) * dx
+    - test_h * (H/r) * div(f * domain.perp(u)) * dx
 )
 h_lhs = lhs(h_eqn)
 h_rhs = rhs(h_eqn)
