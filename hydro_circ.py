@@ -19,7 +19,6 @@ H = 2500.           # depth of atmospheric boundary layer (mean fluid depth) (m)
 # =======================================================================
 # Coefficients used in equations
 r = 3.6e-5          # linear coefficient of friction (N kg^-1 m^-1 s)
-alpha = 1e-5
 
 # =======================================================================
 # Large scale moisture parameters
@@ -39,7 +38,7 @@ e0 = 2300*exp(L/(Rw*293.))   # reference saturation vapour pressure (Pa)
 p0 = 1e5                     # reference pressure (Pa)
 mB = 0.006029                # boundary layer overturning timescale
                              # (kg m^-2 s^-1)
-                    
+
 # =======================================================================
 # Parameters used to compute vertical velocity w
 Cp = 1005.                   # specific heat capacity at constant
@@ -115,15 +114,15 @@ h0 = Function(Vdg)
 n = FacetNormal(mesh)
 dx_max = 2*pi*R/(4*ncells)
 mu = 10/dx_max
-alpha = 0.00001
 h_eqn = test_h * (trial_h - h0) * dx + dt * (
     - test_h * w * dx
-    + (1/alpha) * (
+    + (g*H/r) * (
         inner(grad(test_h), grad(h0)) * dx
         - inner(2*avg(h0 * n), avg(grad(test_h))) * dS
         - inner(avg(grad(h0)), 2*avg(test_h * n)) * dS
         + mu * inner(2*avg(h0 * n), 2*avg(test_h * n)) * dS
     )
+    + test_f * (H/r) * div(f * perp(u)) * dx
 )
 h_lhs = lhs(h_eqn)
 h_rhs = rhs(h_eqn)
@@ -137,7 +136,7 @@ test_u = TestFunction(Vu)
 trial_u = TrialFunction(Vu)
 u0 = Function(Vu)
 u_eqn = inner(test_u, (trial_u - u0)) * dx + dt * (
-    inner(test_u, f*domain.perp(u0) + r*u0) * dx + g * div(test_u) * h * dx
+    inner(test_u, f*domain.perp(u0) + r*u0) * dx - g * div(test_u) * h * dx
 )
 u_lhs = lhs(u_eqn)
 u_rhs = rhs(u_eqn)
