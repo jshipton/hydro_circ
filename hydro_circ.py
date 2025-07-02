@@ -12,7 +12,8 @@ from plotting import *
 # =======================================================================
 # Planetary parameters relevant to Proxima B.
 R = 7160000.        # radius of planet (m)
-Omega = 6.501e-6    # rotation rate of planet (rad s^-1)
+# Omega = 6.501e-6    # rotation rate of planet (rad s^-1)
+Omega = 0.
 g = 10.9            # gravitational acceleration (m s^-2)
 H = 2500.           # depth of atmospheric boundary layer (mean fluid depth) (m)
 
@@ -56,7 +57,7 @@ qC = 0.018                   # critical specific humidity for
 ncells = 16     # number of cells along the edge of each cube face
 mesh = GeneralCubedSphereMesh(radius=R, num_cells_per_edge_of_panel=ncells,
                               degree=2)
-dt = 100
+dt = 10
 domain = Domain(mesh, dt, family="RTCF", degree=1)
 
 # extract function spaces from domain
@@ -98,7 +99,7 @@ def d(lon1, lat1, lon2, lat2):
     return acos(sin(lat1)*sin(lat2) + cos(lat1)*cos(lat2)*cos(lon1-lon2))
 
 Ts = Function(Vdg, name='Ts')
-Ts.interpolate(Tmin + Tpert * exp(-d(lon_c, lat_c, lon, lat)**2/0.1))
+Ts.interpolate(Tmin + Tpert * exp(-d(lon_c, lat_c, lon, lat)**2))
 
 # saturation function
 qs = 0.622 * e0 * exp(-L/(Rw*Ts)) / p0
@@ -113,7 +114,7 @@ trial_h = TrialFunction(Vdg)
 h0 = Function(Vdg)
 n = FacetNormal(mesh)
 dx_max = 2*pi*R/(4*ncells)
-mu = 10/dx_max
+mu = 5/dx_max
 h_eqn = test_h * (trial_h - h0) * dx + dt * (
     - test_h * w * dx
     + (g*H/r) * (
@@ -122,7 +123,7 @@ h_eqn = test_h * (trial_h - h0) * dx + dt * (
         - inner(avg(grad(h0)), 2*avg(test_h * n)) * dS
         + mu * inner(2*avg(h0 * n), 2*avg(test_h * n)) * dS
     )
-    + test_f * (H/r) * div(f * perp(u)) * dx
+    + test_h * (H/r) * div(f * domain.perp(u)) * dx
 )
 h_lhs = lhs(h_eqn)
 h_rhs = rhs(h_eqn)
@@ -136,7 +137,7 @@ test_u = TestFunction(Vu)
 trial_u = TrialFunction(Vu)
 u0 = Function(Vu)
 u_eqn = inner(test_u, (trial_u - u0)) * dx + dt * (
-    inner(test_u, f*domain.perp(u0) + r*u0) * dx - g * div(test_u) * h * dx
+    inner(test_u, f*domain.perp(u0) + r*u0) * dx + g * div(test_u) * h * dx
 )
 u_lhs = lhs(u_eqn)
 u_rhs = rhs(u_eqn)
@@ -195,13 +196,17 @@ plot_field_latlon(w, 'initial_w')
 # =======================================================================
 # Now we can timestep!
 t = 0
-tmax = 100 * dt
+tmax = 1000 * dt
 not_steady = True   # flag to indicate that we have not yet reached a
                     # steady state
+not_blowing_up = True
+first_step = True
+count = 0
 tol = 1e-3          # tolerance with which to compute steady state
 
 # timeloop
-while not_steady and t < tmax:
+while not_steady and not_blowing_up and t < tmax:
+    count += 1
     t += dt
     # update values in w
     w.interpolate(w_expr)
@@ -219,17 +224,23 @@ while not_steady and t < tmax:
     print(f"at time {t}, change in h is: {norm(h-h0)}")
     # print(assemble(w*dx))
     not_steady = norm(h-h0) > tol
+    if first_step:
+        initial_diff = norm(h-h0)
+        first_step = False
+    not_blowing_up = norm(h-h0) < 10 * initial_diff
 
     # update fields
     h0.assign(h)
     u0.assign(u)
     q0.assign(q)
 
-# =======================================================================
-# Now let's plot the final fields.
-plot_field_latlon(q, 'final_q')
-plot_field_latlon(h, 'final_h')
-plot_field_latlon(u, 'final_u')
+    # =======================================================================
+    # Now let's plot the final fields.
+    if count % 10 == 0:
+        plot_field_latlon(q, f'q_{t}')
+        plot_field_latlon(h, f'h_{t}')
+        plot_field_latlon(u, f'u_{t}')
+        plot_u_components(u, f'u_{t}')
 
 # =======================================================================
 # check that q has changed
