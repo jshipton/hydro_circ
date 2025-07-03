@@ -12,7 +12,7 @@ from plotting import *
 # =======================================================================
 # Planetary parameters relevant to Proxima B.
 R = 7160000.        # radius of planet (m)
-# Omega = 6.501e-6    # rotation rate of planet (rad s^-1)
+Omega = 6.501e-6    # rotation rate of planet (rad s^-1)
 Omega = 0.
 g = 10.9            # gravitational acceleration (m s^-2)
 H = 2500.           # depth of atmospheric boundary layer (mean fluid depth) (m)
@@ -123,7 +123,10 @@ h_eqn = test_h * (trial_h - h0) * dx + dt * (
         - inner(avg(grad(h0)), 2*avg(test_h * n)) * dS
         + mu * inner(2*avg(h0 * n), 2*avg(test_h * n)) * dS
     )
-    - test_h * (H/r) * div(f * domain.perp(u)) * dx
+    + (H/r) * (
+        inner(grad(test_h), f * domain.perp(u)) * dx
+        - jump(test_h) * f * avg(dot(domain.perp(u), n)) * dS
+    )
 )
 h_lhs = lhs(h_eqn)
 h_rhs = rhs(h_eqn)
