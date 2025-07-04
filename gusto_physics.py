@@ -131,7 +131,7 @@ class Evaporation(PhysicsParametrisation):
             rho0 * cH * sqrt(dot(self.u, self.u)) * (qs - self.q),
             0)
 
-        equation.residual += source_label(self.label(
+        equation.residual -= source_label(self.label(
             subject(test_q * self.E * dx, equation.X),
             self.evaluate
         ))
@@ -162,7 +162,7 @@ class Precipitation(PhysicsParametrisation):
         self.q = Function(Vq)
         self.P = Function(Vq)
 
-        equation.residual -= source_label(self.label(
+        equation.residual += source_label(self.label(
             subject(test_q * self.P * dx, equation.X),
             self.evaluate
         ))
@@ -194,7 +194,7 @@ class MoistureDescent(PhysicsParametrisation):
 
         self.qA_expr = conditional(self.w < 0, qW, 0)
 
-        equation.residual += source_label(self.label(
+        equation.residual -= source_label(self.label(
             subject(test_q * self.qA * div(self.u) * dx, equation.X),
             self.evaluate
         ))
