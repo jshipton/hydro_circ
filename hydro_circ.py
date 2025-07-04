@@ -59,6 +59,8 @@ mesh = GeneralCubedSphereMesh(radius=R, num_cells_per_edge_of_panel=ncells,
                               degree=2)
 dt = 10
 domain = Domain(mesh, dt, family="RTCF", degree=1)
+output = OutputParameters(dirname="results")
+io = IO(domain, output)
 
 # extract function spaces from domain
 Vu = domain.spaces("HDiv")
@@ -199,7 +201,7 @@ plot_field_latlon(w, 'initial_w')
 # =======================================================================
 # Now we can timestep!
 t = 0
-tmax = 1000 * dt
+tmax = 2 * dt
 not_steady = True   # flag to indicate that we have not yet reached a
                     # steady state
 not_blowing_up = True
@@ -239,7 +241,7 @@ while not_steady and not_blowing_up and t < tmax:
 
     # =======================================================================
     # Now let's plot the final fields.
-    if count % 50 == 0 or not not_blowing_up:
+    if count % 1 == 0 or not not_blowing_up:
         plot_field_latlon(q, f'q_{t}')
         plot_field_latlon(h, f'h_{t}')
         plot_field_latlon(u, f'u_{t}')
