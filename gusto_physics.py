@@ -44,8 +44,10 @@ def precip(parameters, q):
     qC = parameters.qC
     mB = parameters.mB
     q_ut = parameters.q_ut
+    rho0 = parameters.rho0
+    H = parameters.H
 
-    return conditional(q > qC, mB * (q - q_ut), 0)
+    return conditional(q > qC, mB * (q - q_ut) / (rho0 * H), 0)
 
 
 def w(parameters, P):
@@ -115,8 +117,8 @@ class Evaporation(PhysicsParametrisation):
         label_name = 'evaporation'
         super().__init__(equation, label_name)
 
-        rho0 = self.parameters.rho0
         cH = self.parameters.cH
+        H = self.parameters.H
 
         W = equation.function_space
         Vu = W.sub(0)
@@ -128,7 +130,7 @@ class Evaporation(PhysicsParametrisation):
 
         self.E_expr = conditional(
             qs > self.q,
-            rho0 * cH * sqrt(dot(self.u, self.u)) * (qs - self.q),
+            (cH / H) * sqrt(dot(self.u, self.u)) * (qs - self.q),
             0)
 
         equation.residual -= source_label(self.label(
