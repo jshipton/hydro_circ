@@ -107,20 +107,18 @@ def precip(parameters, q):
     qC = parameters.qC
     mB = parameters.mB
     q_ut = parameters.q_ut
-    rho0 = parameters.rho0
-    H = parameters.H
 
-    return conditional(q > qC, mB * (q - q_ut) / (rho0 * H), 0)
+    return conditional(q > qC, mB * (q - q_ut), 0)
 
 
 def evap(parameters, q, u, qs):
 
     cH = parameters.cH
-    H = parameters.H
+    rho0 = parameters.rho0
 
     return conditional(
         qs > q,
-        (cH / H) * sqrt(dot(u, u)) * (qs - q),
+        rho0 * cH * sqrt(dot(u, u)) * (qs - q),
         0)
 
 
@@ -181,6 +179,9 @@ class Evaporation(PhysicsParametrisation):
         label_name = 'evaporation'
         super().__init__(equation, label_name)
 
+        rho0 = self.parameters.rho0
+        H = self.parameters.H
+
         W = equation.function_space
         Vu = W.sub(0)
         self.u = Function(Vu)
@@ -191,7 +192,7 @@ class Evaporation(PhysicsParametrisation):
         self.qs = qs
 
         equation.residual -= source_label(self.label(
-            subject(test_q * self.E * dx, equation.X),
+            subject(test_q * self.E / (rho0 * H) * dx, equation.X),
             self.evaluate
         ))
 
@@ -210,9 +211,8 @@ class Precipitation(PhysicsParametrisation):
         label_name = 'precipitation'
         super().__init__(equation, label_name)
 
-        qC = self.parameters.qC
-        mB = self.parameters.mB
-        q_ut = self.parameters.q_ut
+        rho0 = self.parameters.rho0
+        H = self.parameters.H
 
         W = equation.function_space
         Vu = W.sub(0)
@@ -223,7 +223,7 @@ class Precipitation(PhysicsParametrisation):
         self.P = Function(Vq)
 
         equation.residual += source_label(self.label(
-            subject(test_q * self.P * dx, equation.X),
+            subject(test_q * self.P / (rho0 * H) * dx, equation.X),
             self.evaluate
         ))
 

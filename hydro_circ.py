@@ -28,6 +28,8 @@ parameters = HydroCircParameters(mesh=mesh)
 # set up IO
 output = OutputParameters(dirname="hydro_circ",
                           dumpfreq=5,
+                          dump_vtu=True,
+                          dump_nc=True,
                           dumplist_latlon=[
                               'D', 'D_perturbation',
                               'u_zonal', 'u_meridional',
