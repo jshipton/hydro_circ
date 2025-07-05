@@ -13,7 +13,7 @@ R = 7160000.    # radius of planet (m)
 ncells = 16     # number of cells along the edge of each cube face
 mesh = GeneralCubedSphereMesh(radius=R, num_cells_per_edge_of_panel=ncells,
                               degree=2)
-dt = 10
+dt = 100
 domain = Domain(mesh, dt, family="RTCF", degree=1)
 
 # we need the latitude and longitude coordinates later
@@ -21,18 +21,45 @@ xyz = SpatialCoordinate(mesh)
 lon, lat, _ = lonlatr_from_xyz(*xyz)
 
 # set up IO
-output = OutputParameters(dirname="hydro_circ")
-io = IO(domain, output)
+output = OutputParameters(dirname="hydro_circ",
+                          dumpfreq=5,
+                          dumplist_latlon=[
+                              'D', 'D_error',
+                              'u_zonal', 'u_meridional',
+                              'water_vapour', 'u_divergence'
+                          ])
+diagnostic_fields=[ZonalComponent('u'),
+                   MeridionalComponent('u'),
+                   Divergence('u'),
+                   SteadyStateError('D')]
+io = IO(domain, output, diagnostic_fields=diagnostic_fields)
 
+# set up the physical parameters (e.g. those use to compute E, P, qA,
+# w etc.) Unless specified here, they will take the default values
 parameters = HydroCircParameters(mesh=mesh)
 
 # Coriolis
 fexpr = 2*parameters.Omega*sin(lat)
 # moisture
-tracers = [WaterVapour(space='DG')]
+tracers = [
+    WaterVapour(space='DG', transport_eqn=TransportEquationType.conservative)
+]
 # equations
 eqns = LinearShallowWaterEquations(domain, parameters, fexpr=fexpr,
                                    active_tracers=tracers)
+# hack to add in moisture tracer
+tracer_names = [tracer.name for tracer in tracers]
+for i, (test, field_name) in enumerate(zip(eqns.tests, eqns.field_names)):
+    for tracer_name in tracer_names:
+        if field_name == tracer_name:
+            prog = split(eqns.X)[i]
+            eqns.residual += time_derivative(
+                subject(prognostic(inner(prog, test)*dx,
+                                   field_name), eqns.X)
+                )
+
+# Add transport of moisture
+eqns.residual += eqns.generate_tracer_transport_terms(tracers)
 
 # compute saturation function
 # fake surface temperature field: a constant Tmin plus Gaussian
@@ -55,17 +82,30 @@ Rw = parameters.Rw
 p0 = parameters.p0
 qs = 0.622 * e0 * exp(-L/(Rw*Ts)) / p0
 
-# physics_schemes
-LinearFriction(eqns)
-VerticalVelocity(eqns)
-Evaporation(eqns, qs)
-Precipitation(eqns)
-MoistureDescent(eqns)
+# physics_schemes: this adds the physics terms to the equation
+linear_friction = LinearFriction(eqns)
+w = VerticalVelocity(eqns)
+evap = Evaporation(eqns, qs)
+precip = Precipitation(eqns)
+qA = MoistureDescent(eqns)
 
-for t in eqns.residual:
-    print(t.form)
+# this makes sure we use the right discretisation for the div(q u) term
+transport_methods = [DGUpwind(eqns, 'water_vapour')]
 
-stepper = Timestepper(eqns, ForwardEuler(domain), io)
+# this makes the transport and physics source terms explicit but does
+# the coriolis and gravity terms implicitly - will only have any
+# effect if IMEX schemes are used
+eqns.residual = eqns.residual.label_map(
+    lambda t: t.has_label(transport, source_label),
+    map_if_true=lambda t: explicit(t),
+    map_if_false=lambda t: implicit(t)
+)
+
+stepper = Timestepper(eqns,
+                      RK4(domain),
+                      io, spatial_methods=transport_methods)
+
+stepper.set_reference_profiles([('D', parameters.H)])
 
 # =======================================================================
 # Our initial conditions are that the height perturbation is zero
@@ -77,13 +117,10 @@ stepper = Timestepper(eqns, ForwardEuler(domain), io)
 # initial water vapour, q, is 0.7 * saturation value
 q0 = stepper.fields("water_vapour")
 q0.interpolate(0.7 * qs)
-# compute P from initial q
-# P = Function(q0.function_space()).interpolate(P_expr)
-# print_minmax(P)
-# compute initial w
-# w.interpolate(w_expr)
+D0 = stepper.fields("D")
+D0.interpolate(parameters.H)
 
 # =======================================================================
 # Now we can timestep!
-tmax = 100 * dt
+tmax = 10000 * dt
 stepper.run(0, tmax)
