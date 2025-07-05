@@ -1,8 +1,60 @@
-from firedrake import Function, conditional, dx, inner, dot, div, sqrt, exp
+from firedrake import (Function, conditional, dx, inner, dot, div, sqrt, exp,
+                       Constant, FunctionSpace)
 from firedrake.fml import subject
-from gusto.core import EquationParameters
+#from gusto.core import EquationParameters
 from gusto.core.labels import source_label
 from gusto.physics import PhysicsParametrisation
+import inspect
+
+
+class EquationParameters(object):
+    """A base configuration object for storing equation parameters."""
+
+    mesh = None
+
+    def __init__(self, mesh, **kwargs):
+        """
+        Args:
+            mesh: for creating the real function space
+            **kwargs: attributes and their values to be stored in the object.
+        """
+        self.mesh = mesh
+        typecheck = lambda val: type(val) in [float, int, Constant]
+        params = dict(inspect.getmembers(self, typecheck))
+        params.update(kwargs.items())
+        for name, value in params.items():
+            self.__setattr__(name, value)
+
+    def __setattr__(self, name, value):
+        """
+        Sets the model configuration attributes.
+
+        When attributes are provided as floats or integers, these are converted
+        to Firedrake :class:`Constant` objects, other than a handful of special
+        integers.
+
+        Args:
+            name: the attribute's name.
+            value: the value to provide to the attribute.
+
+        Raises:
+            AttributeError: if the :class:`Configuration` object does not have
+                this attribute pre-defined.
+        """
+        if not hasattr(self, name):
+            raise AttributeError("'%s' object has no attribute '%s'" % (type(self).__name__, name))
+
+        # Almost all parameters should be functions on the real space
+        # -- but there are some specific exceptions which should be
+        # kept as integers
+        if self.mesh is not None:
+            # This check is required so that on instantiation we do
+            # not hit this line while self.mesh is still None
+            R = FunctionSpace(self.mesh, 'R', 0)
+        if type(value) in [float, int, Constant]:
+            object.__setattr__(self, name, Function(R, val=float(value)))
+        else:
+            object.__setattr__(self, name, value)
 
 
 class HydroCircParameters(EquationParameters):
@@ -108,6 +160,7 @@ class VerticalVelocity(PhysicsParametrisation):
         self.q.assign(x_in.subfunctions[-1])
         self.P.interpolate(precip(self.parameters, self.q))
         self.w.assign(w(self.parameters, self.P))
+        print("w: ", self.w.dat.data.min(), self.w.dat.data.max())
 
 
 class Evaporation(PhysicsParametrisation):
@@ -143,6 +196,7 @@ class Evaporation(PhysicsParametrisation):
         self.u.assign(x_in.subfunctions[0])
         self.q.assign(x_in.subfunctions[-1])
         self.E.interpolate(self.E_expr)
+        print("E: ", self.E.dat.data.min(), self.E.dat.data.max())
 
 
 class Precipitation(PhysicsParametrisation):
@@ -173,6 +227,7 @@ class Precipitation(PhysicsParametrisation):
 
         self.q.assign(x_in.subfunctions[-1])
         self.P.interpolate(precip(self.parameters, self.q))
+        print("P: ", self.P.dat.data.min(), self.P.dat.data.max())
 
 
 class MoistureDescent(PhysicsParametrisation):
@@ -208,3 +263,4 @@ class MoistureDescent(PhysicsParametrisation):
         self.w.assign(w(self.parameters, self.P))
         self.qA.interpolate(self.qA_expr)
         self.u.assign(x_in.subfunctions[0])
+        print("qA: ", self.qA.dat.data.min(), self.qA.dat.data.max())
