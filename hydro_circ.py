@@ -5,6 +5,7 @@ from firedrake import (SpatialCoordinate, TestFunction, TrialFunction, norm,
                        jump, dot, FacetNormal, avg, grad)
 from gusto import *
 from gusto_physics import *
+from gusto_diagnostics import *
 
 
 # Set up mesh, timestep and use Gusto to set up the finite element
@@ -20,23 +21,30 @@ domain = Domain(mesh, dt, family="RTCF", degree=1)
 xyz = SpatialCoordinate(mesh)
 lon, lat, _ = lonlatr_from_xyz(*xyz)
 
+# set up the physical parameters (e.g. those use to compute E, P, qA,
+# w etc.) Unless specified here, they will take the default values
+parameters = HydroCircParameters(mesh=mesh)
+
 # set up IO
 output = OutputParameters(dirname="hydro_circ",
                           dumpfreq=5,
                           dumplist_latlon=[
-                              'D', 'D_error',
+                              'D', 'D_perturbation',
                               'u_zonal', 'u_meridional',
-                              'water_vapour', 'u_divergence'
+                              'water_vapour', 'u_divergence',
+                              'vertical_velocity',
+                              'evaporation', 'precipitation'
                           ])
+# sneaky hack so that we can set saturation function later...
+evap_diag = EvaporationDiagnostic(parameters)
 diagnostic_fields=[ZonalComponent('u'),
                    MeridionalComponent('u'),
                    Divergence('u'),
-                   SteadyStateError('D')]
+                   Perturbation('D'),
+                   evap_diag,
+                   PrecipitationDiagnostic(parameters),
+                   WDiagnostic(parameters)]
 io = IO(domain, output, diagnostic_fields=diagnostic_fields)
-
-# set up the physical parameters (e.g. those use to compute E, P, qA,
-# w etc.) Unless specified here, they will take the default values
-parameters = HydroCircParameters(mesh=mesh)
 
 # Coriolis
 fexpr = 2*parameters.Omega*sin(lat)
@@ -81,6 +89,8 @@ L = parameters.L
 Rw = parameters.Rw
 p0 = parameters.p0
 qs = 0.622 * e0 * exp(-L/(Rw*Ts)) / p0
+# ...setting saturation function like I said I would earlier
+evap_diag.qs = qs
 
 # physics_schemes: this adds the physics terms to the equation
 linear_friction = LinearFriction(eqns)
@@ -101,6 +111,7 @@ eqns.residual = eqns.residual.label_map(
     map_if_false=lambda t: implicit(t)
 )
 
+# currently using RK4 (explicit timestepper)
 stepper = Timestepper(eqns,
                       RK4(domain),
                       io, spatial_methods=transport_methods)

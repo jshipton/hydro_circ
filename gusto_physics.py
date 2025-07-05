@@ -91,6 +91,17 @@ class HydroCircParameters(EquationParameters):
                         # initiation of convection (kg kg^-1)
 
 
+def w(parameters, P):
+
+    L = parameters.L
+    Qcl = parameters.Qcl
+    rho0 = parameters.rho0
+    Cp = parameters.Cp
+    dtheta = parameters.dtheta
+
+    return (L * P - Qcl) / (rho0 * Cp * dtheta)
+
+
 def precip(parameters, q):
 
     qC = parameters.qC
@@ -102,15 +113,15 @@ def precip(parameters, q):
     return conditional(q > qC, mB * (q - q_ut) / (rho0 * H), 0)
 
 
-def w(parameters, P):
+def evap(parameters, q, u, qs):
 
-    L = parameters.L
-    Qcl = parameters.Qcl
-    rho0 = parameters.rho0
-    Cp = parameters.Cp
-    dtheta = parameters.dtheta
+    cH = parameters.cH
+    H = parameters.H
 
-    return (L * P - Qcl) / (rho0 * Cp * dtheta)
+    return conditional(
+        qs > q,
+        (cH / H) * sqrt(dot(u, u)) * (qs - q),
+        0)
 
 
 class LinearFriction(PhysicsParametrisation):
@@ -170,9 +181,6 @@ class Evaporation(PhysicsParametrisation):
         label_name = 'evaporation'
         super().__init__(equation, label_name)
 
-        cH = self.parameters.cH
-        H = self.parameters.H
-
         W = equation.function_space
         Vu = W.sub(0)
         self.u = Function(Vu)
@@ -180,11 +188,7 @@ class Evaporation(PhysicsParametrisation):
         test_q = equation.tests[-1]
         self.q = Function(Vq)
         self.E = Function(Vq)
-
-        self.E_expr = conditional(
-            qs > self.q,
-            (cH / H) * sqrt(dot(self.u, self.u)) * (qs - self.q),
-            0)
+        self.qs = qs
 
         equation.residual -= source_label(self.label(
             subject(test_q * self.E * dx, equation.X),
@@ -195,7 +199,7 @@ class Evaporation(PhysicsParametrisation):
 
         self.u.assign(x_in.subfunctions[0])
         self.q.assign(x_in.subfunctions[-1])
-        self.E.interpolate(self.E_expr)
+        self.E.interpolate(evap(self.parameters, self.q, self.u, self.qs))
         print("E: ", self.E.dat.data.min(), self.E.dat.data.max())
 
 
