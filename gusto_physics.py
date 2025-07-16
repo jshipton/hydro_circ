@@ -1,5 +1,5 @@
 from firedrake import (Function, conditional, dx, inner, dot, div, sqrt, exp,
-                       Constant, FunctionSpace)
+                       Constant, FunctionSpace, assemble)
 from firedrake.fml import subject
 #from gusto.core import EquationParameters
 from gusto.core.labels import source_label
@@ -122,6 +122,13 @@ def evap(parameters, q, u, qs):
         0)
 
 
+def qW(q, P, w):
+
+    descent_expr = conditional(w < 0, w, 0)
+    ascent_expr = conditional(w >= 0, q * w - P, 0)
+    return assemble(ascent_expr * dx) / assemble(descent_expr * dx)
+
+
 class LinearFriction(PhysicsParametrisation):
 
     def __init__(self, equation):
@@ -241,8 +248,6 @@ class MoistureDescent(PhysicsParametrisation):
         label_name = 'moisture_descent'
         super().__init__(equation, label_name)
 
-        qW = self.parameters.qW
-
         W = equation.function_space
         Vu = W.sub(0)
         self.u = Function(Vu)
@@ -252,8 +257,15 @@ class MoistureDescent(PhysicsParametrisation):
         self.w = Function(Vq)
         self.q = Function(Vq)
         self.qA = Function(Vq)
+        self.descent_integral = Constant(0.)
+        self.ascent_integral = Constant(0.)
+        self.qW = Constant(0.)
 
-        self.qA_expr = conditional(self.w < 0, qW, 0)
+        self.descent_expr = conditional(self.w < 0, self.w, 0)
+        self.ascent_expr = conditional(self.w >= 0,
+                                        self.q * self.w - self.P,
+                                        0)
+        self.qA_expr = conditional(self.w < 0, self.qW, 0)
 
         equation.residual -= source_label(self.label(
             subject(test_q * self.qA * div(self.u) * dx, equation.X),
@@ -265,6 +277,8 @@ class MoistureDescent(PhysicsParametrisation):
         self.q.assign(x_in.subfunctions[-1])
         self.P.interpolate(precip(self.parameters, self.q))
         self.w.assign(w(self.parameters, self.P))
+        self.qW.assign(qW(self.q, self.P, self.w))
         self.qA.interpolate(self.qA_expr)
         self.u.assign(x_in.subfunctions[0])
         print("qA: ", self.qA.dat.data.min(), self.qA.dat.data.max())
+        print("qW: ", float(self.qW))
