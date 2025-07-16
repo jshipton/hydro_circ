@@ -1,6 +1,8 @@
 from firedrake import (Function, conditional, dx, inner, dot, div, sqrt, exp,
-                       Constant, FunctionSpace)
+                       Constant, FunctionSpace, assemble)
 from firedrake.fml import subject
+from ufl.domain import extract_unique_domain
+
 #from gusto.core import EquationParameters
 from gusto.core.labels import source_label
 from gusto.physics import PhysicsParametrisation
@@ -152,6 +154,9 @@ class VerticalVelocity(PhysicsParametrisation):
         label_name = 'vertical_velocity'
         super().__init__(equation, label_name)
 
+        self.max_its = 100
+        self.tol = 1e-8
+        self.diff = 1e-1
         W = equation.function_space
         Vh = W.sub(1)
         test_h = equation.tests[1]
@@ -166,11 +171,23 @@ class VerticalVelocity(PhysicsParametrisation):
 
     def evaluate(self, x_in, dt, x_out=None):
 
-        self.q.assign(x_in.subfunctions[-1])
-        self.P.interpolate(precip(self.parameters, self.q))
-        self.w.assign(w(self.parameters, self.P))
-        print("w: ", self.w.dat.data.min(), self.w.dat.data.max())
+        total_w = 1.
+        nits = 0
+        while abs(total_w) > self.tol and nits < self.max_its:
 
+            self.q.assign(x_in.subfunctions[-1])
+            self.P.interpolate(precip(self.parameters, self.q))
+            self.w.assign(w(self.parameters, self.P))
+            #print("w: ", self.w.dat.data.min(), self.w.dat.data.max())
+            area = assemble(1*dx(domain=extract_unique_domain(self.w)))
+            total_w = assemble(self.w * dx) / area
+            if total_w > 0:
+                self.parameters.qC += self.diff
+            else:
+                self.parameters.qC -= self.diff
+            print(f"nits: {nits}, total_w: {total_w:.6f}, qC: {float(self.parameters.qC):.4f}, min w: {self.w.dat.data.min():.4f}, max w: {self.w.dat.data.max():.4f}")
+            nits +=1
+            
 
 class Evaporation(PhysicsParametrisation):
 
@@ -201,7 +218,7 @@ class Evaporation(PhysicsParametrisation):
         self.u.assign(x_in.subfunctions[0])
         self.q.assign(x_in.subfunctions[-1])
         self.E.interpolate(evap(self.parameters, self.q, self.u, self.qs))
-        print("E: ", self.E.dat.data.min(), self.E.dat.data.max())
+        #print("E: ", self.E.dat.data.min(), self.E.dat.data.max())
 
 
 class Precipitation(PhysicsParametrisation):
@@ -231,7 +248,7 @@ class Precipitation(PhysicsParametrisation):
 
         self.q.assign(x_in.subfunctions[-1])
         self.P.interpolate(precip(self.parameters, self.q))
-        print("P: ", self.P.dat.data.min(), self.P.dat.data.max())
+        #print("P: ", self.P.dat.data.min(), self.P.dat.data.max())
 
 
 class MoistureDescent(PhysicsParametrisation):
@@ -267,4 +284,4 @@ class MoistureDescent(PhysicsParametrisation):
         self.w.assign(w(self.parameters, self.P))
         self.qA.interpolate(self.qA_expr)
         self.u.assign(x_in.subfunctions[0])
-        print("qA: ", self.qA.dat.data.min(), self.qA.dat.data.max())
+        #print("qA: ", self.qA.dat.data.min(), self.qA.dat.data.max())
