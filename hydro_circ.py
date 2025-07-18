@@ -7,7 +7,7 @@ from gusto import *
 from gusto_physics import *
 from gusto_diagnostics import *
 
-explicit_timestepping = False
+explicit_timestepping = True
 
 # Set up mesh, timestep and use Gusto to set up the finite element
 # function spaces.
@@ -83,7 +83,7 @@ eqns.residual += eqns.generate_tracer_transport_terms(tracers)
 lon_c = 0
 lat_c = 0
 Tmin = 230
-Tpert = 80
+Tpert = 100
 
 def d(lon1, lat1, lon2, lat2):
     # returns distance on sphere between (lon1, lat1) and (lon2, lat2)
@@ -102,10 +102,10 @@ evap_diag.qs = qs
 
 # physics_schemes: this adds the physics terms to the equation
 linear_friction = LinearFriction(eqns)
-precip = Precipitation(eqns)
 w = VerticalVelocity(eqns)
-evap = Evaporation(eqns, qs)
 qA = MoistureDescent(eqns)
+precip = Precipitation(eqns)
+evap = Evaporation(eqns, qs)
 
 # this makes sure we use the right discretisation for the div(q u) term
 transport_methods = [DGUpwind(eqns, 'water_vapour')]
@@ -150,5 +150,5 @@ D0.interpolate(parameters.H)
 
 # =======================================================================
 # Now we can timestep!
-tmax = 10000 * dt
+tmax = 1000 * dt
 stepper.run(0, tmax)

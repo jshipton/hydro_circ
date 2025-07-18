@@ -162,8 +162,8 @@ class VerticalVelocity(PhysicsParametrisation):
         super().__init__(equation, label_name)
 
         self.max_its = 100
-        self.tol = 1e-8
-        self.diff = 1e-1
+        self.tol = 1e-6
+        self.diff = 0.1 * self.parameters.qC
         W = equation.function_space
         Vh = W.sub(1)
         test_h = equation.tests[1]
@@ -278,10 +278,6 @@ class MoistureDescent(PhysicsParametrisation):
         self.ascent_integral = Constant(0.)
         self.qW = Constant(0.)
 
-        self.descent_expr = conditional(self.w < 0, self.w, 0)
-        self.ascent_expr = conditional(self.w >= 0,
-                                        self.q * self.w - self.P,
-                                        0)
         self.qA_expr = conditional(self.w < 0, self.qW, 0)
 
         equation.residual -= source_label(self.label(
