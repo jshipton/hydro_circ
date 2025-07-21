@@ -169,7 +169,6 @@ class VerticalVelocity(PhysicsParametrisation):
         self.q.assign(x_in.subfunctions[-1])
         self.P.interpolate(precip(self.parameters, self.q))
         self.w.assign(w(self.parameters, self.P))
-        print("w: ", self.w.dat.data.min(), self.w.dat.data.max())
 
 
 class Evaporation(PhysicsParametrisation):
@@ -190,18 +189,19 @@ class Evaporation(PhysicsParametrisation):
         self.q = Function(Vq)
         self.E = Function(Vq)
         self.qs = qs
+        self.tau = Constant(0.)   # timescale, set to dt
 
         equation.residual -= source_label(self.label(
-            subject(test_q * self.E / (rho0 * H) * dx, equation.X),
+            subject(test_q * self.E / (self.tau * rho0 * H) * dx, equation.X),
             self.evaluate
         ))
 
     def evaluate(self, x_in, dt, x_out=None):
 
+        self.tau.assign(1.)
         self.u.assign(x_in.subfunctions[0])
         self.q.assign(x_in.subfunctions[-1])
         self.E.interpolate(evap(self.parameters, self.q, self.u, self.qs))
-        print("E: ", self.E.dat.data.min(), self.E.dat.data.max())
 
 
 class Precipitation(PhysicsParametrisation):
@@ -221,17 +221,18 @@ class Precipitation(PhysicsParametrisation):
         test_q = equation.tests[-1]
         self.q = Function(Vq)
         self.P = Function(Vq)
+        self.tau = Constant(0.)   # timescale, set to dt
 
         equation.residual += source_label(self.label(
-            subject(test_q * self.P / (rho0 * H) * dx, equation.X),
+            subject(test_q * self.P / (self.tau * rho0 * H) * dx, equation.X),
             self.evaluate
         ))
 
     def evaluate(self, x_in, dt, x_out=None):
 
+        self.tau.assign(1.)
         self.q.assign(x_in.subfunctions[-1])
         self.P.interpolate(precip(self.parameters, self.q))
-        print("P: ", self.P.dat.data.min(), self.P.dat.data.max())
 
 
 class MoistureDescent(PhysicsParametrisation):
@@ -267,4 +268,3 @@ class MoistureDescent(PhysicsParametrisation):
         self.w.assign(w(self.parameters, self.P))
         self.qA.interpolate(self.qA_expr)
         self.u.assign(x_in.subfunctions[0])
-        print("qA: ", self.qA.dat.data.min(), self.qA.dat.data.max())
