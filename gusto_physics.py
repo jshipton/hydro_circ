@@ -1,5 +1,5 @@
 from firedrake import (Function, conditional, dx, inner, dot, div, sqrt, exp,
-                       Constant, FunctionSpace)
+                       Constant, FunctionSpace, assemble)
 from firedrake.fml import subject
 #from gusto.core import EquationParameters
 from gusto.core.labels import source_label
@@ -90,6 +90,9 @@ class HydroCircParameters(EquationParameters):
     qC = 0.018          # critical specific humidity for
                         # initiation of convection (kg kg^-1)
 
+    # =======================================================================
+    # Optimisation switches
+    adjust_qW = False
 
 def w(parameters, P):
 
@@ -120,6 +123,13 @@ def evap(parameters, q, u, qs):
         qs > q,
         rho0 * cH * sqrt(dot(u, u)) * (qs - q),
         0)
+
+
+def qW(q, P, w):
+
+    descent_expr = conditional(w < 0, w, 0)
+    ascent_expr = conditional(w >= 0, q * w - P, 0)
+    return assemble(ascent_expr * dx) / assemble(descent_expr * dx)
 
 
 class LinearFriction(PhysicsParametrisation):
@@ -242,7 +252,7 @@ class MoistureDescent(PhysicsParametrisation):
         label_name = 'moisture_descent'
         super().__init__(equation, label_name)
 
-        qW = self.parameters.qW
+        self.qW = self.parameters.qW
 
         W = equation.function_space
         Vu = W.sub(0)
@@ -254,7 +264,7 @@ class MoistureDescent(PhysicsParametrisation):
         self.q = Function(Vq)
         self.qA = Function(Vq)
 
-        self.qA_expr = conditional(self.w < 0, qW, 0)
+        self.qA_expr = conditional(self.w < 0, self.qW, 0)
 
         equation.residual -= source_label(self.label(
             subject(test_q * self.qA * div(self.u) * dx, equation.X),
@@ -266,5 +276,8 @@ class MoistureDescent(PhysicsParametrisation):
         self.q.assign(x_in.subfunctions[-1])
         self.P.interpolate(precip(self.parameters, self.q))
         self.w.assign(w(self.parameters, self.P))
+        if self.parameters.adjust_qW:
+            self.qW.assign(qW(self.q, self.P, self.w))
+        print(f"qW: {float(self.qW)}")
         self.qA.interpolate(self.qA_expr)
         self.u.assign(x_in.subfunctions[0])
