@@ -7,6 +7,7 @@ from gusto import *
 from gusto_physics import *
 from gusto_diagnostics import *
 
+explicit_timestepping = False
 
 # Set up mesh, timestep and use Gusto to set up the finite element
 # function spaces.
@@ -14,7 +15,12 @@ R = 7160000.    # radius of planet (m)
 ncells = 16     # number of cells along the edge of each cube face
 mesh = GeneralCubedSphereMesh(radius=R, num_cells_per_edge_of_panel=ncells,
                               degree=2)
-dt = 100
+if explicit_timestepping:
+    dt = 100
+    dirname = "hydro_circ_explicit"
+else:
+    dt = 1000
+    dirname = "hydro_circ_implicit"
 domain = Domain(mesh, dt, family="RTCF", degree=1)
 
 # we need the latitude and longitude coordinates later
@@ -26,9 +32,9 @@ lon, lat, _ = lonlatr_from_xyz(*xyz)
 parameters = HydroCircParameters(mesh=mesh)
 
 # set up IO
-output = OutputParameters(dirname="hydro_circ",
+output = OutputParameters(dirname=dirname,
                           dumpfreq=5,
-                          dump_vtu=True,
+                          dump_vtus=True,
                           dump_nc=True,
                           dumplist_latlon=[
                               'D', 'D_perturbation',
@@ -96,27 +102,36 @@ evap_diag.qs = qs
 
 # physics_schemes: this adds the physics terms to the equation
 linear_friction = LinearFriction(eqns)
+precip = Precipitation(eqns)
 w = VerticalVelocity(eqns)
 evap = Evaporation(eqns, qs)
-precip = Precipitation(eqns)
 qA = MoistureDescent(eqns)
 
 # this makes sure we use the right discretisation for the div(q u) term
 transport_methods = [DGUpwind(eqns, 'water_vapour')]
 
-# this makes the transport and physics source terms explicit but does
-# the coriolis and gravity terms implicitly - will only have any
-# effect if IMEX schemes are used
-eqns.residual = eqns.residual.label_map(
-    lambda t: t.has_label(transport, source_label),
-    map_if_true=lambda t: explicit(t),
-    map_if_false=lambda t: implicit(t)
-)
+if explicit_timestepping:
+    # use an RK4 timestepper
+    stepper = Timestepper(eqns,
+                          RK4(domain),
+                          io, spatial_methods=transport_methods)
+else:
+    # this makes the transport and physics source terms explicit but does
+    # the coriolis and gravity terms implicitly - will only have any
+    # effect if IMEX schemes are used
+    eqns.residual = eqns.residual.label_map(
+        lambda t: t.has_label(transport),
+        map_if_true=lambda t: explicit(t)
+    )
+    eqns.residual = eqns.residual.label_map(
+        lambda t: any(t.has_label(pressure_gradient, coriolis, return_tuple=True)),
+        map_if_true=lambda t: implicit(t)
+    )
 
-# currently using RK4 (explicit timestepper)
-stepper = Timestepper(eqns,
-                      RK4(domain),
-                      io, spatial_methods=transport_methods)
+    # use an IMEX timestepper
+    stepper = Timestepper(eqns,
+                          IMEX_SSP3(domain),
+                          io, spatial_methods=transport_methods)
 
 stepper.set_reference_profiles([('D', parameters.H)])
 
