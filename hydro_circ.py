@@ -78,19 +78,26 @@ for i, (test, field_name) in enumerate(zip(eqns.tests, eqns.field_names)):
 eqns.residual += eqns.generate_tracer_transport_terms(tracers)
 
 # compute saturation function
-# fake surface temperature field: a constant Tmin plus Gaussian
-# perturbation centered on (lon_c, lat_c)
-lon_c = 0
-lat_c = 0
-Tmin = 230
-Tpert = 80
+if use_data:
+    from netCDF4 import Dataset
+    data = Dataset(filename)
+    Ts_ll = data['temp'][0]
+    lon = data['longitude']
+    lat = data['latitude']
+else:
+    # fake surface temperature field: a constant Tmin plus Gaussian
+    # perturbation centered on (lon_c, lat_c)
+    lon_c = 0
+    lat_c = 0
+    Tmin = 230
+    Tpert = 80
 
-def d(lon1, lat1, lon2, lat2):
-    # returns distance on sphere between (lon1, lat1) and (lon2, lat2)
-    return acos(sin(lat1)*sin(lat2) + cos(lat1)*cos(lat2)*cos(lon1-lon2))
+    def d(lon1, lat1, lon2, lat2):
+        # returns distance on sphere between (lon1, lat1) and (lon2, lat2)
+        return acos(sin(lat1)*sin(lat2) + cos(lat1)*cos(lat2)*cos(lon1-lon2))
 
-Ts = Function(domain.spaces("L2"), name='Ts')
-Ts.interpolate(Tmin + Tpert * exp(-d(lon_c, lat_c, lon, lat)**2))
+    Ts = Function(domain.spaces("L2"), name='Ts')
+    Ts.interpolate(Tmin + Tpert * exp(-d(lon_c, lat_c, lon, lat)**2))
 
 e0 = parameters.e0
 L = parameters.L
