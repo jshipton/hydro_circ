@@ -93,14 +93,19 @@ class HydroCircParameters(EquationParameters):
     # =======================================================================
     # Optimisation switches
     adjust_qW = False
+    adjust_Qcl = False
 
 def w(parameters, P):
 
     L = parameters.L
-    Qcl = parameters.Qcl
     rho0 = parameters.rho0
     Cp = parameters.Cp
     dtheta = parameters.dtheta
+
+    if parameters.adjust_Qcl:
+        Qcl = conditional(P > 0, 0.5*parameters.Qcl, parameters.Qcl)
+    else:
+        Qcl = parameters.Qcl
 
     return (L * P - Qcl) / (rho0 * Cp * dtheta)
 
@@ -178,7 +183,7 @@ class VerticalVelocity(PhysicsParametrisation):
 
         self.q.assign(x_in.subfunctions[-1])
         self.P.interpolate(precip(self.parameters, self.q))
-        self.w.assign(w(self.parameters, self.P))
+        self.w.interpolate(w(self.parameters, self.P))
 
 
 class Evaporation(PhysicsParametrisation):
@@ -275,7 +280,7 @@ class MoistureDescent(PhysicsParametrisation):
 
         self.q.assign(x_in.subfunctions[-1])
         self.P.interpolate(precip(self.parameters, self.q))
-        self.w.assign(w(self.parameters, self.P))
+        self.w.interpolate(w(self.parameters, self.P))
         if self.parameters.adjust_qW:
             self.qW.assign(qW(self.q, self.P, self.w))
         print(f"qW: {float(self.qW)}")
