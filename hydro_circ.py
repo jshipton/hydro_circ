@@ -6,8 +6,10 @@ from firedrake import (SpatialCoordinate, TestFunction, TrialFunction, norm,
 from gusto import *
 from gusto_physics import *
 from gusto_diagnostics import *
+from initialise_from_data import *
 
-explicit_timestepping = False
+explicit_timestepping = True
+use_data = True
 
 # Set up mesh, timestep and use Gusto to set up the finite element
 # function spaces.
@@ -78,12 +80,9 @@ for i, (test, field_name) in enumerate(zip(eqns.tests, eqns.field_names)):
 eqns.residual += eqns.generate_tracer_transport_terms(tracers)
 
 # compute saturation function
+Ts = Function(domain.spaces("L2"), name='Ts')
 if use_data:
-    from netCDF4 import Dataset
-    data = Dataset(filename)
-    Ts_ll = data['temp'][0]
-    lon = data['longitude']
-    lat = data['latitude']
+    Ts.interpolate(initialise_from_netcdf(mesh, "initial_surf_temp_280c.nc"))
 else:
     # fake surface temperature field: a constant Tmin plus Gaussian
     # perturbation centered on (lon_c, lat_c)
@@ -96,7 +95,6 @@ else:
         # returns distance on sphere between (lon1, lat1) and (lon2, lat2)
         return acos(sin(lat1)*sin(lat2) + cos(lat1)*cos(lat2)*cos(lon1-lon2))
 
-    Ts = Function(domain.spaces("L2"), name='Ts')
     Ts.interpolate(Tmin + Tpert * exp(-d(lon_c, lat_c, lon, lat)**2))
 
 e0 = parameters.e0
