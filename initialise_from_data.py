@@ -5,7 +5,7 @@ from firedrake import (FiniteElement, TensorProductElement, FunctionSpace,
                        TestFunction, Cofunction, functionspaceimpl, pi,
                        assemble)
 from firedrake.__future__ import interpolate
-from firedrake.output import VTKFile
+
 import numpy as np
 from netCDF4 import Dataset
 
@@ -143,10 +143,6 @@ def initialise_from_netcdf(dest_mesh, filename):
     I.interpolate(f_star, adjoint=True, output=f_data_star)
     field = f_data_star.riesz_representation(riesz_map="l2")
 
-    # write out to VTK
-    outfile = VTKFile("outfile.pvd")
-    outfile.write(field)
-
     # We now have the input data as a CG1 function on a lon-lat
     # rectangle mesh. We need the data on a spherical mesh.
 
@@ -170,13 +166,5 @@ def initialise_from_netcdf(dest_mesh, filename):
         functionspaceimpl.WithGeometry.create(
             f_sphere_ll.function_space(), dest_mesh),
         val=f_sphere_ll.topological)
-
-    # write out to VTK
-    outfile = VTKFile("outfile_sphere_ll.pvd")
-    outfile.write(f_sphere_ll)
-
-    # write out to VTK
-    outfile = VTKFile("outfile_sphere.pvd")
-    outfile.write(f_sphere)
 
     return f_sphere
