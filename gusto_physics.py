@@ -94,6 +94,7 @@ class HydroCircParameters(EquationParameters):
     # Optimisation switches
     adjust_qW = False
     adjust_Qcl = False
+    use_w = False
 
 def w(parameters, P):
 
@@ -258,6 +259,7 @@ class MoistureDescent(PhysicsParametrisation):
         super().__init__(equation, label_name)
 
         self.qW = self.parameters.qW
+        H = self.parameters.H
 
         W = equation.function_space
         Vu = W.sub(0)
@@ -271,10 +273,16 @@ class MoistureDescent(PhysicsParametrisation):
 
         self.qA_expr = conditional(self.w < 0, self.qW, 0)
 
-        equation.residual -= source_label(self.label(
-            subject(test_q * self.qA * div(self.u) * dx, equation.X),
-            self.evaluate
-        ))
+        if self.parameters.use_w:
+            equation.residual += source_label(self.label(
+                subject(test_q * self.qA * self.w / H * dx, equation.X),
+                self.evaluate
+            ))
+        else:
+            equation.residual -= source_label(self.label(
+                subject(test_q * self.qA * div(self.u) * dx, equation.X),
+                self.evaluate
+            ))
 
     def evaluate(self, x_in, dt, x_out=None):
 

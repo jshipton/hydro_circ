@@ -9,7 +9,7 @@ from gusto_diagnostics import *
 from initialise_from_data import *
 
 explicit_timestepping = True
-use_data = True
+use_data = False
 
 # Set up mesh, timestep and use Gusto to set up the finite element
 # function spaces.
@@ -34,7 +34,8 @@ lon, lat, _ = lonlatr_from_xyz(*xyz)
 parameters = HydroCircParameters(mesh=mesh)
 # you can adjust parameters by passing them to HydroCircParameters
 # rather than editing the gusto_physics.py file, e.g.:
-parameters = HydroCircParameters(mesh=mesh, adjust_qW=True, adjust_Qcl=True)
+parameters = HydroCircParameters(mesh=mesh, adjust_qW=True,
+                                 adjust_Qcl=True, use_w=True)
 
 # set up IO
 output = OutputParameters(dirname=dirname,
