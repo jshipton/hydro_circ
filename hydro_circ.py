@@ -35,7 +35,8 @@ parameters = HydroCircParameters(mesh=mesh)
 # you can adjust parameters by passing them to HydroCircParameters
 # rather than editing the gusto_physics.py file, e.g.:
 parameters = HydroCircParameters(mesh=mesh, adjust_qW=True,
-                                 adjust_Qcl=True, use_w=True)
+                                 adjust_Qcl=True, use_w=True,
+                                 conserve_mass=True)
 
 # set up IO
 output = OutputParameters(dirname=dirname,

@@ -4,6 +4,7 @@ from firedrake.fml import subject
 #from gusto.core import EquationParameters
 from gusto.core.labels import source_label
 from gusto.physics import PhysicsParametrisation
+from ufl.domain import extract_unique_domain
 import inspect
 
 
@@ -95,6 +96,7 @@ class HydroCircParameters(EquationParameters):
     adjust_qW = False
     adjust_Qcl = False
     use_w = False
+    conserve_mass = False
 
 def w(parameters, P):
 
@@ -163,10 +165,14 @@ class LinearFriction(PhysicsParametrisation):
 
 class VerticalVelocity(PhysicsParametrisation):
 
-    def __init__(self, equation):
+    def __init__(self, equation, max_its=10, tol=1e-6, inc=1e-2):
 
         label_name = 'vertical_velocity'
         super().__init__(equation, label_name)
+
+        self.max_its = max_its
+        self.tol = tol
+        self.diff = inc * self.parameters.qC
 
         W = equation.function_space
         Vh = W.sub(1)
@@ -182,6 +188,21 @@ class VerticalVelocity(PhysicsParametrisation):
 
     def evaluate(self, x_in, dt, x_out=None):
 
+        if self.parameters.conserve_mass:
+            total_w = 1.
+            nits = 0
+            while abs(total_w) > self.tol and nits < self.max_its:
+                self.q.assign(x_in.subfunctions[-1])
+                self.P.interpolate(precip(self.parameters, self.q))
+                self.w.interpolate(w(self.parameters, self.P))
+                area = assemble(1*dx(domain=extract_unique_domain(self.w)))
+                total_w = assemble(self.w * dx) / area
+                if total_w > 0:
+                    self.parameters.qC += self.diff
+                else:
+                    self.parameters.qC -= self.diff
+                nits += 1
+                print(f"nits: {nits}, total_w: {total_w:.6f}, qC: {float(self.parameters.qC):.4f}, min w: {self.w.dat.data.min():.4f}, max w: {self.w.dat.data.max():.4f}")
         self.q.assign(x_in.subfunctions[-1])
         self.P.interpolate(precip(self.parameters, self.q))
         self.w.interpolate(w(self.parameters, self.P))
